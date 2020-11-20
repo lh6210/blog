@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Array Comparison with numbers</title>
+    <!-- bootstrap CDN-->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <!-- self-made stylesheet -->
+    <link rel="stylesheet" href="../assets/styles/style.css">
+    <!-- code block -->
+    <link rel="stylesheet" href="../assets/styles/prism.css">
+    <!-- icon --> 
+    <script src="https://kit.fontawesome.com/cbc558647c.js" crossorigin="anonymous"></script>
+    <link rel="icon" href="../assets/icons/feather-alt-solid.svg">
+  </head>
+  <body class='language-python line-numbers'>
+    <div class='container'>
+      <div class="row header">
+	<div class="col-12 d-flex align-items-center flex-wrap">
+	  <div class='h-elm'> &#9730 </div>
+	  <div class='h-elm'> &#9728 </div>
+	  <div class='h-elm'>&#9731</div>
+	  <div class='h-elm'>&#9998</div>
+	  <div class='h-elm'>&#9822</div>
+	  <div class='h-elm'>&#9825</div>
+	  <div class='h-elm'> &#9836 </div>
+	  <div class='h-elm'> &#9743 </div>
+	  <i class="fas fa-dog fa-sm h-elm"></i>
+	  <i class="fas fa-cat fa-sm h-elm"></i>
+	</div>
+      </div>
+
+      <div class="row main">
+	<div class='col'>
+	  <h1>2.4.13 Propagating Constraints</h1>
+	  <p>Nov 20, 2020</p>
+	  <hr>
+	  <p>I added some ingredients into the constraint-based system graph according to my understanding. Here's how it runs. Whenever we set up the system, the constant [unitary] constraints set their registered connectors. You see the three violet diamond boxes named w, x, and y with values 9, 5, and 32 in them respectively, these are connectors who got their values set from constant constraints as soon as the system starts. They also registered with other constraints. For example, connector w, along with connector u and c, are connected with Multiplier A [Ternary] constraint. Multiplier A constraint checked all of its three connectors after connector w was set to 9 and found that there was not enough information for it to determine the remaining two connectors, so it keeps watching for more messages from other connectors (connector c in this case). We could see from the graph that connectors c and f are the ones closely related to the user. They either accept input from the user or print out output the user want. Hence I group them together in the user interface. Once either c or f is set, the constraints one by one will compute the remaining connectors and finally the other one will be computed, and the user will get the result of Celsius-Fahrenheit conversion.</p>
+	  <div class='text-center'>
+	    <img src="pic/constraintSystem.png" class="img-fluid" alt="">
+	  </div>
+	  <br>
+	  <p>The system is amazing to me because it's the first time multi-directional computation occurred to me. In our example, we might set a value in Celsius and then the system computes Fahrenheit for us, or we could go the other way, we set a value in Fahrenheit and we get the corresponding value in Celsius. Both of these conversions are in one function.</p> 
+	  <p>To make sure I truely understand this system, I rebuilt it in object-oriented approach.</p>
+	  <p>Let's look at the connectors. I separate them into three groups, constant connectors go to DumbConnector group, celsius and fahrenheit go to UserConnector group, and others go to RelayConnector group. All of the connectors accept the "forget_value" message, but DumbConnector does nothing here, because that's what constants do. Each connector has a list of constraints that it is registered in. And I let each connector have a name so that it's helpful in debugging. Both UserConnector and RelayConnector inherit DumbConnector so that we don't need to repeat most of the methods. They are quite similar!</p>
+	  <pre><code>
+	  class DumbConnector:
+	      """
+	      a = DumbConnector()
+	      a.set_value(9.8)
+	      a.set_name('free fall acceleration rate')
+	      a.connect(mulA)
+	      """
+	      def __init__(self, value=None):
+		  self.constraints = []
+		  self.value = value 
+
+	      def set_name(self, name):
+		  self.name = name
+
+	      def set_value(self, value):
+		  self.value = value
+		  print('{} is set to {}'.format(self.name, self.value))
+
+	      def forget_value(self):
+		  return
+
+	      def connect(self, constraint):
+		  self.constraints += [constraint]
+
+	      def has_value(self):
+		  return self.value != None
+
+	  class UserConnector(DumbConnector):
+	      def set_value(self, value, informant='user'):
+		  self.value = value
+		  print('[UserConnector] {} = {}'.format(self.name, self.value))
+		  if informant == 'user':
+		      for c in self.constraints:
+			  c.check_connectors(self)
+		  else:
+		      print('---end---')
+
+	      def forget_value(self):
+		  self.value = None
+		  print('[UserConnector] {} is set to None'.format(self.name))
+
+	  class RelayConnector(DumbConnector):
+	      def set_value(self, value, informant):
+		  self.value = value
+		  print('[RelayConnector] {} is set to {}'.format(self.name, self.value))
+		  for b in self.constraints:
+		      if b is not informant:
+			  b.check_connectors(self)
+
+	      def forget_value(self):
+		  self.value = None
+		  print('[RelayConnector] {} is set to None'.format(self.name))
+	  </code></pre>   
+
+	  <p>DumbConnector group saves me some effort because I could get rid of the constant constraints and only keep the TernaryConstraint. Each TernaryConstraint object maintains one list of connectors and one of relational operations.</p>
+	  <pre><code>
+	  from operator import add, sub, mul, truediv
+	  class TernaryConstraint:
+	      """
+	      mulA = TernaryConstraint(c, w, u, mul, truediv, truediv)
+	      addA = TernaryConstraint(y, v, f, add, sub, sub)
+	      """
+	      def __init__(self, a, b, c, ab, bc, ca):
+		  a.connect(self)
+		  b.connect(self)
+		  c.connect(self)
+		  self.connectors = [a, b, c]
+		  self.relations = [ab, bc, ca]
+
+	      def reset_except(self, informant):
+		  for elm in self.connectors:
+		      # something wrong here
+		      if elm is not informant:
+			  elm.forget_value()
+
+	      #after one of the connectors is set
+	      def check_connectors(self, informant):
+		  self.reset_except(informant)
+		  
+		  a = self.connectors[0]
+		  b = self.connectors[1]
+		  c = self.connectors[2]
+		  ab = self.relations[0]
+		  bc = self.relations[1]
+		  ca = self.relations[2]
+		  if a.has_value() and b.has_value():
+		      c.set_value(ab(a.value, b.value), self)
+		  elif b.has_value() and c.has_value():
+		      a.set_value(bc(c.value, b.value), self)
+		  elif c.has_value() and a.has_value():
+		      b.set_value(ca(c.value, a.value), self)
+	 </code></pre> 
+
+	  <p>The last part is the main function to run. The reason that c and f are defined outside of converter() is because we need to have a handle of c and f later on for setting their values.</p>
+	  <pre><code>
+	  def converter(c, f):
+	      u, v = [RelayConnector() for _ in range(2)]
+	      w, x, y= [DumbConnector() for _ in range(3)]
+
+	      w.set_name('w')
+	      w.set_value(9)
+	      x.set_name('x')
+	      x.set_value(5)
+	      y.set_name('y')
+	      y.set_value(32)
+
+	      u.set_name('u')
+	      v.set_name('v')
+
+	      mulA = TernaryConstraint(c, w, u, mul, truediv, truediv)
+	      mulB = TernaryConstraint(x, v, u, mul, truediv, truediv)
+	      addA = TernaryConstraint(y, v, f, add, sub, sub)
+
+	  c, f = [UserConnector() for _ in range(2)]
+	  c.set_name('Celsius')
+	  f.set_name('Fahrenheit')
+	  converter(c, f)
+	  </code></pre>
+
+
+	  <p>Let's try some values in Celsius and Fahrenheit respectively:</p>
+	  <pre class='command-line no-line-numbers' data-prompt=">>>" data-filter-output="(out)"><code>
+	  (out)w is set to 9
+	  (out)x is set to 5
+	  (out)y is set to 32
+	  c.set_value(100)
+	  (out)[UserConnector] Celsius = 100
+	  (out)[RelayConnector] u is set to None
+	  (out)[RelayConnector] u is set to 900
+	  (out)[RelayConnector] v is set to None
+	  (out)[RelayConnector] v is set to 180.0
+	  (out)[UserConnector] Fahrenheit is set to None
+	  (out)[UserConnector] Fahrenheit = 212.0
+	  (out)---end---
+	  c.set_value(200)
+	  (out)[UserConnector] Celsius = 200
+	  (out)[RelayConnector] u is set to None
+	  (out)[RelayConnector] u is set to 1800
+	  (out)[RelayConnector] v is set to None
+	  (out)[RelayConnector] v is set to 360.0
+	  (out)[UserConnector] Fahrenheit is set to None
+	  (out)[UserConnector] Fahrenheit = 392.0
+	  (out)---end---
+	  f.set_value(20)
+	  (out)[UserConnector] Fahrenheit = 20
+	  (out)[RelayConnector] v is set to None
+	  (out)[RelayConnector] v is set to -12
+	  (out)[RelayConnector] u is set to None
+	  (out)[RelayConnector] u is set to -60
+	  (out)[UserConnector] Celsius is set to None
+	  (out)[UserConnector] Celsius = -6.666666666666667
+	  (out)---end---
+	  f.set_value(500)
+	  (out)[UserConnector] Fahrenheit = 500
+	  (out)[RelayConnector] v is set to None
+	  (out)[RelayConnector] v is set to 468
+	  (out)[RelayConnector] u is set to None
+	  (out)[RelayConnector] u is set to 2340
+	  (out)[UserConnector] Celsius is set to None
+	  (out)[UserConnector] Celsius = 260.0
+	  (out)---end---
+	  </code></pre>
+
+	  <p>In conclusion, with message passing/dispatching or Python's object-oriented structure, we could build some complex systems that multiple components inside it communicate with each other. For this specific example, we've built a two-dimensional computing system dealing with Celsius-Fahrenheit conversion.</p> 
+
+	</div>  <!-- col ends-->
+      </div>  <!--row main ends -->
+
+      <!--footer row begins-->
+      <div class="row footer">
+	<div class="col-12 d-flex justify-content-around align-items-center flex-wrap">
+	  <a href="../index.html"><i class="fas fa-helicopter"></i> Index page</a>
+	  <div>&copy; 2020 PeterLearns2Code<i class="fas fa-feather-alt"></i></div>
+	  <div>Email: lh6210@gmail.com</div>
+	  <div><a href="https://twitter.com/PeterLi06"><i class="fab fa-twitter-square fa-2x"></i></a></div>
+	</div>
+      </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.min.js" integrity="sha384-w1Q4orYjBQndcko6MimVbzY0tgp4pWB4lZ7lr30WKz0vr/aWKhXdBNmNb5D92v7s" crossorigin="anonymous"></script>
+    <script src='sort.js'></script>
+    <script src='../assets/styles/prism.js'></script>
+  </body>
+</html>
